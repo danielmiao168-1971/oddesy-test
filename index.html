@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奧德賽歸鄉地圖冒險</title>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Tailwind CSS Script loaded BEFORE setting tailwind.config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        canva: {
+                            purple: '#7d2ae8',
+                            dark: '#0e131f',
+                            card: '#181e2e',
+                            accent: '#00c4cc',
+                            gold: '#ffc72c',
+                            correct: '#10b981',
+                            wrong: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            color: #f8fafc;
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh;
+        }
+        .canva-glass {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .option-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .option-card:hover:not(.disabled) {
+            transform: translateY(-2px);
+            border-color: #7d2ae8;
+            box-shadow: 0 10px 25px -5px rgba(125, 42, 232, 0.3);
+        }
+        .option-card.correct {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.3) 100%) !important;
+            border-color: #10b981 !important;
+            color: #d1fae5 !important;
+        }
+        .option-card.wrong {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.3) 100%) !important;
+            border-color: #ef4444 !important;
+            color: #fee2e2 !important;
+        }
+        .pin-active {
+            box-shadow: 0 0 15px #00c4cc, 0 0 30px #7d2ae8;
+            transform: scale(1.25);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(125, 42, 232, 0.5);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between overflow-x-hidden selection:bg-purple-500 selection:text-white">
+
+    <header class="w-full bg-canva-dark/95 backdrop-blur-md border-b border-white/10 sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <!-- Left Branding -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="showWelcomeScreen()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-canva-accent flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <i class="fa-solid fa-compass text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-purple-300">
+                        奧德賽歸鄉地圖冒險
+                    </h1>
+                    <p class="text-xs text-purple-300/80">Canva 簡報地圖選擇題 (13 站 36 題完整版)</p>
+                </div>
+            </div>
+
+            <!-- Middle Navigation Progress -->
+            <div id="topProgressContainer" class="hidden md:flex items-center space-x-4">
+                <span id="stationBadge" class="px-3 py-1 rounded-full text-xs font-medium bg-purple-900/60 text-purple-200 border border-purple-500/30">
+                    📍 地圖流浪總覽
+                </span>
+                <div class="w-48 bg-slate-800 h-2.5 rounded-full overflow-hidden border border-white/10">
+                    <div id="progressBar" class="bg-gradient-to-r from-canva-purple to-canva-accent h-full transition-all duration-300 w-0"></div>
+                </div>
+                <span id="progressText" class="text-xs text-slate-300 font-mono">0 / 36 題</span>
+            </div>
+
+            <!-- Right Controls -->
+            <div class="flex items-center space-x-2">
+                <button id="mapNavBtn" onclick="showMapView()" class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-white text-sm font-semibold shadow-md shadow-cyan-500/20 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    <span>流浪地圖</span>
+                </button>
+                <button id="soundBtn" onclick="toggleSound()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm border border-white/10 transition flex items-center gap-1.5">
+                    <i id="soundIcon" class="fa-solid fa-volume-high text-canva-accent"></i>
+                    <span class="hidden sm:inline">音效</span>
+                </button>
+                <button onclick="openGridModal()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm border border-white/10 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-grip text-purple-400"></i>
+                    <span class="hidden sm:inline">總覽</span>
+                </button>
+                <button onclick="restartQuiz()" class="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 text-sm border border-purple-500/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span class="hidden sm:inline">重來</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-3 sm:p-6 my-auto">
+        <div class="w-full max-w-5xl mx-auto">
+
+            <!-- 1. Welcome Screen -->
+            <div id="welcomeScreen" class="canva-glass rounded-3xl p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden border border-white/10">
+                <div class="absolute -right-20 -top-20 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-canva-accent/20 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-sm mb-6">
+                    <i class="fa-solid fa-ship"></i> 荷馬史詩 10 年歸鄉路線互動體驗
+                </div>
+
+                <h2 class="text-3xl sm:text-5xl font-black text-white mb-4 tracking-tight leading-tight">
+                    奧德賽迷航記<br>
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-canva-accent via-purple-300 to-canva-gold">
+                        地圖導覽選擇題考驗
+                    </span>
+                </h2>
+
+                <p class="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto mb-8 leading-relaxed">
+                    點擊「開始航海冒險」，將直接進入《流浪地圖》。點選地圖上的 13 個站點地標，回答該站對應的選擇題！
+                </p>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto mb-8 text-left">
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-white/5">
+                        <div class="text-cyan-400 font-bold text-lg mb-1"><i class="fa-solid fa-map"></i> 13 個站點</div>
+                        <div class="text-xs text-slate-400">地圖實境互動選擇</div>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-white/5">
+                        <div class="text-purple-400 font-bold text-lg mb-1"><i class="fa-solid fa-list-check"></i> 36 題選擇題</div>
+                        <div class="text-xs text-slate-400">標準 A.B.C.D 選項</div>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-white/5">
+                        <div class="text-canva-gold font-bold text-lg mb-1"><i class="fa-solid fa-lightbulb"></i> 即時解析</div>
+                        <div class="text-xs text-slate-400">答題後詳盡說明</div>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-white/5">
+                        <div class="text-emerald-400 font-bold text-lg mb-1"><i class="fa-solid fa-trophy"></i> 航海動態解鎖</div>
+                        <div class="text-xs text-slate-400">點亮 13 站神話勳章</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center gap-4">
+                    <button onclick="startQuizFromMap()" class="px-10 py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-canva-accent hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-lg shadow-xl shadow-purple-600/30 transform hover:-translate-y-1 transition duration-200 flex items-center gap-3 animate-bounce">
+                        <i class="fa-solid fa-compass"></i>
+                        <span>開始航海冒險（開啟流浪地圖）</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Interactive Map Main Screen (First Screen after clicking Start) -->
+            <div id="mapViewScreen" class="hidden canva-glass rounded-3xl p-4 sm:p-6 shadow-2xl relative border border-white/10">
+                
+                <!-- Map Top Title Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-white/10">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white leading-tight">奧德賽 - 10年返鄉路 流浪地圖</h3>
+                            <p class="text-xs text-cyan-300">請點擊地圖上的紅圈站點，開啟對應考題</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <div class="text-xs text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-white/10">
+                            航程進度：<span id="mapClearedCount" class="font-bold text-canva-accent">0</span> / 13 站解鎖
+                        </div>
+                        <button id="viewResultsBtn" onclick="showResultsScreen()" class="hidden px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white text-xs font-bold shadow-lg transition flex items-center gap-1.5 animate-pulse">
+                            <i class="fa-solid fa-trophy"></i>
+                            <span>檢視總航程成績</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Map Image Viewport -->
+                <div class="relative max-w-4xl mx-auto rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-amber-50 mb-4">
+                    <!-- Base Map Image -->
+                    <img src="奧德賽5.jpg" alt="奧德賽10年返鄉路 流浪地圖" class="w-full h-auto block min-h-[300px] object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1024x576/1e293b/00c4cc?text=%E2%9A%93+%E5%A5%A7%E5%BE%B7%E8%B3%BD10%E5%B9%B4%E8%BF%94%E9%84%89%E8%B7%AF+%E6%B5%81%E6%B5%AA%E5%9C%B0%E5%9C%96';">
+
+                    <!-- Overlay Hotspot Pins Container -->
+                    <div id="mapMainHotspotsContainer" class="absolute inset-0">
+                        <!-- Pins rendered via JS -->
+                    </div>
+                </div>
+
+                <!-- Active Station Detail Bar at bottom of map -->
+                <div id="activeStationCard" class="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-slate-200">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span id="activeStationBadge" class="px-2.5 py-0.5 rounded-md bg-purple-900/80 text-purple-300 text-xs font-mono font-bold border border-purple-500/30">
+                                    第 1 站 / 共 13 站
+                                </span>
+                                <h4 id="activeStationTitle" class="font-bold text-base sm:text-lg text-cyan-300">
+                                    1. 特洛伊
+                                </h4>
+                            </div>
+                            <p id="activeStationDesc" class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                                奧德賽參與特洛伊戰爭獻木馬計破城後，踏上長達 10 年的海上流浪歸鄉路。
+                            </p>
+                            <div id="activeStationQuestionsInfo" class="mt-1 text-xs text-purple-300 font-mono">
+                                📌 對應考題：題 1 與 題 2（共 2 題）
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+                            <button id="startStationQuizBtn" onclick="launchStationQuiz()" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-canva-accent hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-sm shadow-lg shadow-purple-600/30 transition flex items-center justify-center gap-2 transform hover:scale-105">
+                                <i class="fa-solid fa-play"></i>
+                                <span>開始本站考驗</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Quiz Question Slide Container (Plays questions for selected station) -->
+            <div id="quizContainer" class="hidden flex-col gap-4">
+                
+                <!-- Slide Card -->
+                <div class="canva-glass rounded-3xl p-6 sm:p-10 shadow-2xl relative border border-white/10 min-h-[480px] flex flex-col justify-between">
+                    
+                    <!-- Header -->
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-4">
+                            <span id="slideStationLabel" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                <i class="fa-solid fa-map-pin"></i> 第 1 站：特洛伊
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="showMapView()" class="text-xs px-3 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/30 transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-map"></i> 返回流浪地圖
+                                </button>
+                                <span id="slideNumberBadge" class="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-white/10">
+                                    本站 Q1 / 2 (總 Q1 / 36)
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Question Title -->
+                        <h3 id="questionText" class="text-xl sm:text-2xl font-bold text-white mb-6 leading-snug">
+                            1. 哪一位神祇很欣賞奧德賽，在他有困難時，常常幫助他？
+                        </h3>
+
+                        <!-- Options List -->
+                        <div id="optionsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                            <!-- Options injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Explanation Feedback Box -->
+                    <div id="explanationCard" class="hidden rounded-2xl p-4 bg-slate-900/90 border border-slate-700 mb-4 animate-fade-in">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i id="explanationIcon" class="fa-solid fa-circle-info"></i>
+                            <span id="explanationTitle" class="font-bold text-sm">答案解析</span>
+                        </div>
+                        <p id="explanationText" class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                            解析說明...
+                        </p>
+                    </div>
+
+                    <!-- Slide Footer -->
+                    <div class="flex items-center justify-between pt-4 border-t border-white/10">
+                        <button id="prevBtn" onclick="prevQuestion()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/10 transition flex items-center gap-2">
+                            <i class="fa-solid fa-chevron-left"></i> 上一題
+                        </button>
+                        
+                        <div class="text-xs text-slate-400 font-mono hidden sm:block">
+                            點擊選項即可進行判答
+                        </div>
+
+                        <button id="nextBtn" onclick="nextQuestion()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-canva-accent hover:from-purple-500 hover:to-cyan-400 text-white text-xs font-bold shadow-md transition flex items-center gap-2">
+                            <span>下一題</span>
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Final Results View Screen -->
+            <div id="resultsScreen" class="hidden canva-glass rounded-3xl p-8 sm:p-12 text-center shadow-2xl relative border border-white/10">
+                <div class="w-20 h-20 mx-auto mb-4 rounded-3xl bg-gradient-to-tr from-canva-gold to-amber-500 flex items-center justify-center text-slate-950 text-4xl font-black shadow-xl shadow-amber-500/30">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+
+                <h2 class="text-3xl sm:text-4xl font-black text-white mb-2">航海冒險挑戰完成！</h2>
+                <p class="text-purple-300 text-sm mb-6">您已探索完《奧德賽》全部 13 個流浪里程站</p>
+
+                <!-- Score Board -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto mb-8">
+                    <div class="p-4 rounded-2xl bg-slate-800/60 border border-white/10">
+                        <div class="text-xs text-slate-400 mb-1">總得分</div>
+                        <div id="finalScore" class="text-3xl font-black text-canva-accent">0</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-800/60 border border-white/10">
+                        <div class="text-xs text-slate-400 mb-1">答對題數</div>
+                        <div id="finalCorrectCount" class="text-3xl font-black text-emerald-400">0 / 36</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-800/60 border border-white/10">
+                        <div class="text-xs text-slate-400 mb-1">正確率</div>
+                        <div id="finalAccuracy" class="text-3xl font-black text-canva-gold">0%</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-800/60 border border-white/10">
+                        <div class="text-xs text-slate-400 mb-1">航海稱號</div>
+                        <div id="finalRankTitle" class="text-sm font-bold text-purple-300 mt-2">智勇雙全神話宗師</div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap items-center justify-center gap-4">
+                    <button onclick="showMapView()" class="px-8 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-sm border border-cyan-500/30 shadow-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-map"></i>
+                        <span>返回流浪地圖</span>
+                    </button>
+                    <button onclick="restartQuiz()" class="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-canva-accent text-white font-bold text-sm shadow-xl hover:from-purple-500 transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>重新挑戰測驗</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Grid Modal -->
+    <div id="gridModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="canva-glass rounded-3xl max-w-4xl w-full max-h-[85vh] flex flex-col border border-white/10 shadow-2xl">
+            <div class="p-5 border-b border-white/10 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-grip text-purple-400"></i>
+                    36 題題目總覽與跳轉
+                </h3>
+                <button onclick="closeGridModal()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:bg-slate-700">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow">
+                <div id="gridQuestionsContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-9 gap-2.5">
+                    <!-- Injected dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="w-full bg-canva-dark/80 border-t border-white/5 py-3 px-4 text-center text-xs text-slate-500">
+        奧德賽迷航記 互動測驗系統 &copy; 荷馬史詩選擇題地圖體驗版
+    </footer>
+
+    <script>
+        // Sound synth setup
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioCtx;
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                const ctx = getAudioContext();
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'correct') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now); // A3
+                    osc.frequency.setValueAtTime(180, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'win') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.15);
+                    osc.frequency.setValueAtTime(783.99, now + 0.3);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                }
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const soundBtn = document.getElementById('soundBtn');
+            const soundIcon = document.getElementById('soundIcon');
+
+            if (soundEnabled) {
+                soundIcon.className = "fa-solid fa-volume-high text-canva-accent";
+                soundBtn.classList.remove('opacity-50');
+                playSound('click');
+            } else {
+                soundIcon.className = "fa-solid fa-volume-xmark text-slate-500";
+                soundBtn.classList.add('opacity-50');
+            }
+        }
+    </script>
+
+    <script>
+        // 13 Map Stations mapped precisely to Question Indexes
+    // 13 Map Stations mapped precisely to Question Indexes and Map Coordinates
+    const mapStations = [
+        { id: 1, name: "1. 特洛伊", percentLeft: 74.8, percentTop: 27.5, qStart: 1, qEnd: 2, qIndices: [0, 1], desc: "奧德賽參與特洛伊戰爭獻木馬計破城後，踏上長達 10 年的海上流浪歸鄉路。" },
+        { id: 2, name: "2. 蓮花島", percentLeft: 32.5, percentTop: 90.5, qStart: 3, qEnd: 4, qIndices: [2, 3], desc: "島上居民以忘憂蓮花為食，船員吃了會失去歸鄉意志，奧德賽強行將他們拉回船上。" },
+        { id: 3, name: "3. 巨人之家", percentLeft: 38.2, percentTop: 68.5, qStart: 5, qEnd: 8, qIndices: [4, 5, 6, 7], desc: "獨眼巨人波利菲莫斯吞食船員，奧德賽用葡萄酒灌醉並刺瞎單眼，躲在羊肚子下方逃脫。" },
+        { id: 4, name: "4. 浮島", percentLeft: 31.8, percentTop: 65.8, qStart: 9, qEnd: 13, qIndices: [8, 9, 10, 11, 12], desc: "風神愛樂士贈送關有不利風向的皮袋，船員因好奇私自打開導致暴風將船隻吹回。" },
+        { id: 5, name: "5. 雷斯屈鞏人島", percentLeft: 21.5, percentTop: 40.2, qStart: 14, qEnd: 15, qIndices: [13, 14], desc: "遇見殘忍的食人巨人族雷斯屈鞏人，用魚叉攻擊並毀壞了奧德賽大部分船隻。" },
+        { id: 6, name: "6. 色喜女神島", percentLeft: 28.5, percentTop: 22.5, qStart: 16, qEnd: 18, qIndices: [15, 16, 17], desc: "女巫色喜用魔藥將船員變成豬，奧德賽在赫爾墨斯贈送神草「摩利」幫助下解救同伴。" },
+        { id: 7, name: "7. 陰間", percentLeft: 33.5, percentTop: 35.0, qStart: 19, qEnd: 22, qIndices: [18, 19, 20, 21], desc: "奧德賽前往冥界尋求盲人先知特蕾西亞斯指引，並親眼看見薛西弗斯推石等罪人的懲罰。" },
+        { id: 8, name: "8. 賽倫島", percentLeft: 38.8, percentTop: 36.2, qStart: 23, qEnd: 25, qIndices: [22, 23, 24], desc: "人首鳥身的海妖賽倫用天籟歌聲誘惑過往船員，奧德賽用蜂蠟封住船員耳朵並把自己綁在桅桿上。" },
+        { id: 9, name: "9. 墨西拿海峽怪物", percentLeft: 42.8, percentTop: 56.5, qStart: 26, qEnd: 29, qIndices: [25, 26, 27, 28], desc: "海峽兩側有六頭海怪斯庫拉與每日吞吐海水三次形成巨型旋渦的海怪卡律布狄斯。" },
+        { id: 10, name: "10. 太陽島", percentLeft: 42.5, percentTop: 63.0, qStart: 30, qEnd: 30, qIndices: [29], desc: "船員違背預言殺食太陽神赫利奧斯的聖牛，導致船隻遭宙斯雷電擊沉，僅奧德賽生還。" },
+        { id: 11, name: "11. 卡麗莎島", percentLeft: 41.2, percentTop: 77.8, qStart: 31, qEnd: 32, qIndices: [30, 31], desc: "仙女卡莉普索將奧德賽挽留在島上 7 年，並承諾給予永生不老，但被一心想回家的奧德賽拒絕。" },
+        { id: 12, name: "12. 菲阿先國", percentLeft: 52.8, percentTop: 50.2, qStart: 33, qEnd: 33, qIndices: [32], desc: "菲阿先國純潔的娜烏西卡公主救起落難的奧德賽，國王派神船護送他回到故鄉。" },
+        { id: 13, name: "13. 綺思佳", percentLeft: 53.2, percentTop: 56.8, qStart: 34, qEnd: 36, qIndices: [33, 34, 35], desc: "奧德賽化身乞丐重返故鄉，與王后潘洛妮獻計舉辦穿過十二斧孔拉弓比賽擊敗求婚者並相認。" }
+    ];
+
+    // 36 Questions Data
+        const questionsData = [
+            // 1. 特洛伊 (Q1-Q2)
+            { id: 1, stationId: 1, stationName: "1. 特洛伊", question: "1. 哪一位神祇很欣賞奧德賽，在他有困難時，常常幫助他？", options: ["雅典娜 (Athena)", "赫拉 (Hera)", "阿芙蘿黛蒂 (Aphrodite)", "阿耳忒彌斯 (Artemis)"], answer: 0, explanation: "智慧女神雅典娜非常欣賞奧德賽的機智與勇敢，在整個歸鄉歷程中多次化身並給予關鍵協助。" },
+            { id: 2, stationId: 1, stationName: "1. 特洛伊", question: "2. 奧德賽得罪了哪位天神而在海上漂流 10 年？", options: ["宙斯 (Zeus)", "波塞頓 (Poseidon)", "哈得斯 (Hades)", "阿波羅 (Apollo)"], answer: 1, explanation: "奧德賽刺瞎了海神波塞頓的兒子波利菲莫斯（獨眼巨人），因而遭到波塞頓的憤怒詛咒，在海上漂流流浪長達 10 年。" },
+
+            // 2. 蓮花島 (Q3-Q4)
+            { id: 3, stationId: 2, stationName: "2. 蓮花島", question: "3. 迷幻食蓮人是指吃了什麼的土人？", options: ["神奇毒蕈", "忘憂蓮花 (Lotus)", "禁忌蘋果", "迷幻罌粟"], answer: 1, explanation: "島上的土著居民食用一種具有麻醉迷幻效果的忘憂蓮花 (Lotus)。" },
+            { id: 4, stationId: 2, stationName: "2. 蓮花島", question: "4. 船員吃了蓮花之後會發生什麼事？", options: ["會忘記回家，只想永遠留在島上", "會立即陷入永久昏迷", "會獲得預知未來的能力", "會發狂並攻擊同伴"], answer: 0, explanation: "吃了忘憂蓮花的人會沉溺於甜美的快感，失去歸鄉的意志與記憶，只想留在島上繼續食用蓮花。" },
+
+            // 3. 巨人之家 (Q5-Q8)
+            { id: 5, stationId: 3, stationName: "3. 巨人之家", question: "5. 在巨人之家，奧德賽遇見了哪一位巨人？", options: ["喀戎 (Chiron)", "波利菲莫斯 (Polyphemus)", "提豐 (Typhon)", "阿耳戈斯 (Argus)"], answer: 1, explanation: "奧德賽一行人誤闖獨眼巨人波利菲莫斯 (Polyphemus) 的洞穴。" },
+            { id: 6, stationId: 3, stationName: "3. 巨人之家", question: "6. 這位巨人喜歡吃什麼？", options: ["只吃島上的野果", "喜歡吃人（奧德賽的船員）", "僅喝羊奶與起司", "喜歡吃熟魚"], answer: 1, explanation: "波利菲莫斯殘忍凶暴，抓住了奧德賽的船員並將他們作為食物殘忍吞食。" },
+            { id: 7, stationId: 3, stationName: "3. 巨人之家", question: "7. 他是哪一位天神的兒子？", options: ["宙斯 (Zeus)", "赫菲斯托斯 (Hephaestus)", "波塞頓 (Poseidon)", "阿雷斯 (Ares)"], answer: 2, explanation: "獨眼巨人波利菲莫斯是海神波塞頓 (Poseidon) 與仙女托奧薩所生的兒子。" },
+            { id: 8, stationId: 3, stationName: "3. 巨人之家", question: "8. 後來奧德賽是如何帶領船員逃脫的？", options: ["用利劍刺死巨人後奪門而出", "弄瞎巨人的單眼，並躲在羊群腹下偷溜出去", "趁巨人熟睡時挖洞逃走", "祈求雅典娜施展隱形術帶大家離開"], answer: 1, explanation: "奧德賽用葡萄酒灌醉巨人後，用燒紅的木樁刺瞎其單眼，次日清晨讓船員緊抱羊群肚子腹部逃出洞穴。" },
+
+            // 4. 浮島 (Q9-Q13)
+            { id: 9, stationId: 4, stationName: "4. 浮島", question: "9. 奧德賽拜訪愛樂士時，該島嶼名稱為何？", options: ["埃奧利亞島 (Aeolia)", "墨西拿島", "克里特島", "斯巴達"], answer: 0, explanation: "風神愛樂士居住在可以漂浮移動的埃奧利亞島 (Aeolia)。" },
+            { id: 10, stationId: 4, stationName: "4. 浮島", question: "10. 愛樂士是什麼王？", options: ["太陽之王", "海洋之王", "風神／風之王", "冥界之王"], answer: 2, explanation: "愛樂士 (Aiolos) 是宙斯指派掌管諸風的風神／風之王。" },
+            { id: 11, stationId: 4, stationName: "4. 浮島", question: "11. 愛樂士有幾個兒子？", options: ["3 個", "6 個", "12 個", "24 個"], answer: 1, explanation: "風神愛樂士育有 6 個兒子。" },
+            { id: 12, stationId: 4, stationName: "4. 浮島", question: "12. 愛樂士有幾個女兒？", options: ["3 個", "6 個", "12 個", "24 個"], answer: 1, explanation: "風神愛樂士育有 6 個女兒（共 12 個子女）。" },
+            { id: 13, stationId: 4, stationName: "4. 浮島", question: "13. 愛樂士送給奧德賽什麼禮物？", options: ["一艘永不沉沒的神船", "裝有不利風向（暴風）的皮袋", "指引航道的指南星盤", "防禦巨浪的神聖披風"], answer: 1, explanation: "風神將各種阻礙航行的不利暴風裝進牛皮袋中綁緊送給奧德賽，只留下順航西風；然而船員好奇私開皮袋導致暴風狂吹。" },
+
+            // 5. 雷斯屈鞏人島 (Q14-Q15)
+            { id: 14, stationId: 5, stationName: "5. 雷斯屈鞏人島", question: "14. 在雷斯屈鞏島上，他們遇見了一位什麼人？", options: ["巨人國王的女兒（高大的少女）", "神祕的老漁夫", "國王安提法提斯", "女巫色喜"], answer: 0, explanation: "奧德賽派出的偵查隊最先在泉水邊遇見了巨人國王安提法提斯高大的女兒。" },
+            { id: 15, stationId: 5, stationName: "5. 雷斯屈鞏人島", question: "15. 隨後趕來的巨人手裡拿著魚叉，就是有名的什麼人？", options: ["獨眼巨人", "雷斯屈鞏 (Laestrygoni) 食人族", "百臂巨人", "半人馬"], answer: 1, explanation: "他們是殘忍強悍的雷斯屈鞏 (Laestrygoni) 巨型食人族，用巨大石頭與魚叉摧毀了奧德賽 11 艘船隻。" },
+
+            // 6. 色喜女神島 (Q16-Q18)
+            { id: 16, stationId: 6, stationName: "6. 色喜女神島", question: "16. 色喜女神用什麼把船員變成豬？", options: ["塗抹神奇藥膏", "摻有魔藥的飲食與魔杖點化", "詛咒咒語", "魔鏡影像"], answer: 1, explanation: "女巫色喜 (Circe) 招待船員吃下摻有迷藥的乳酪與甜酒，隨後用魔杖輕點將他們變成了豬隻。" },
+            { id: 17, stationId: 6, stationName: "6. 色喜女神島", question: "17. 奧德賽是因哪位天神的幫助而逃過一劫？", options: ["赫爾墨斯 (Hermes)", "阿波羅 (Apollo)", "宙斯 (Zeus)", "哈得斯 (Hades)"], answer: 0, explanation: "信使神赫爾墨斯 (Hermes) 化身青年出現，給予奧德賽破解巫術的神草與對策。" },
+            { id: 18, stationId: 6, stationName: "6. 色喜女神島", question: "18. 該位天神贈送了什麼給奧德賽？", options: ["隱形草帽", "解毒神草「摩利」(Moly)", "反光青銅盾牌", "聖水"], answer: 1, explanation: "赫爾墨斯贈送給奧德賽一種黑根白花的神聖植物「摩利」(Moly)，使其免疫色喜的魔法。" },
+
+            // 7. 陰間 (Q19-Q22)
+            { id: 19, stationId: 7, stationName: "7. 陰間", question: "19. 在陰間，奧德賽看見薛西弗斯被做了什麼懲罰？", options: ["綁在火輪上旋轉", "永遠推巨石上山，石頭到山頂又會滾落", "站在水池中卻喝不到水、吃不到水果", "被巨鷹每天啄食肝臟"], answer: 1, explanation: "薛西弗斯 (Sisyphus) 遭受的懲罰是永無止境地將一塊巨石推向山頂，每當接近山頂時巨石就會自動滾落。" },
+            { id: 20, stationId: 7, stationName: "7. 陰間", question: "20. 在陰間，奧德賽看見丁德拉斯（坦塔洛斯 Tantalus）被做了什麼懲罰？", options: ["身處水中卻喝不到水，懸於果樹下卻吃不到果實", "推動巨石上山", "被綁在大車輪上受火焚燒", "永遠在黑河中游泳"], answer: 0, explanation: "坦塔洛斯 (Tantalus) 站在及頸的水中卻無法飲水（彎腰水即退去），頭頂結滿豐碩水果卻無法吃到（手伸去風即吹開）。" },
+            { id: 21, stationId: 7, stationName: "7. 陰間", question: "21. 在陰間，奧德賽看見泰突阿斯 (Tityos) 被做了什麼懲罰？", options: ["兩隻兀鷹不停啄食他的肝臟", "被壓在大山底下", "被綁在鐵柱上鞭打", "永遠盲目地在黑暗中行走"], answer: 0, explanation: "泰突阿斯 (Tityos) 被鎖在地底，兩隻兀鷹每日不停撕裂啄食他的肝臟。" },
+            { id: 22, stationId: 7, stationName: "7. 陰間", question: "22. 在陰間，奧德賽遇到了哪一位盲人先知？", options: ["特蕾西亞斯 (Tiresias)", "奧菲斯 (Orpheus)", "卡爾卡斯 (Calchas)", "墨拉姆甫斯 (Melampus)"], answer: 0, explanation: "奧德賽遵照色喜指引，前往冥界尋求底比斯的盲人先知特蕾西亞斯 (Tiresias) 預言返鄉之路。" },
+
+            // 8. 賽倫島 (Q23-Q25)
+            { id: 23, stationId: 8, stationName: "8. 賽倫島", question: "23. 在賽倫島上，賽倫女妖的外形為何？", options: ["下半身為魚尾的美人魚", "人首鳥身（半人半鳥）", "蛇髮蛇身", "蝙蝠人"], answer: 1, explanation: "史詩《奧德賽》中的賽倫 (Sirens) 海妖外貌為半人半鳥（人首鳥身）。" },
+            { id: 24, stationId: 8, stationName: "24. 在賽倫島上，賽倫女妖很會用什麼特殊能力迷惑人心？", options: ["迷人的眼神", "絕美且具魔力的歌聲", "濃郁的香氣", "財寶幻象"], answer: 1, explanation: "賽倫擁有無與倫比的天籟歌聲，能預知一切並用迷人歌詞誘使船員觸礁身亡。" },
+            { id: 25, stationId: 8, stationName: "25. 奧德賽是用何種方法幫助船員避免誘惑？", options: ["用蜂蠟塞住船員耳朵，並將自己綁在船桅上", "讓所有人戴上鐵頭盔", "大聲彈奏豎琴掩蓋歌聲", "服用神草暫時失聰"], answer: 0, explanation: "奧德賽用軟化的蜂蠟封住所有船員耳朵，並命令船員將自己緊緊捆綁在船隻主桅桿上以傾聽歌聲。" },
+
+            // 9. 墨西拿海峽怪物 (Q26-Q29)
+            { id: 26, stationId: 9, stationName: "9. 墨西拿海峽怪物", question: "26. 在墨西拿海峽的一側，奧德賽會遇到什麼？", options: ["斯庫拉 (Scylla)，有六個長頭並會吞噬船員", "卡律布狄斯 (Charybdis)", "美杜莎 (Medusa)", "許德拉 (Hydra)"], answer: 0, explanation: "海怪斯庫拉 (Scylla) 擁有六個長頸與三排尖牙的頭，每次船隻經過都會一口氣吞吃六名船員。" },
+            { id: 27, stationId: 9, stationName: "27. 墨西拿海峽的另一側是誰？", options: ["斯庫拉 (Scylla)", "卡律布狄斯 (Charybdis)", "奇美拉 (Chimera)", "厄客德娜 (Echidna)"], answer: 1, explanation: "另一側為巨型吸水海怪卡律布狄斯 (Charybdis)。" },
+            { id: 28, stationId: 9, stationName: "28. 卡律布狄斯每天會吞吐海水分量幾次？", options: ["1 次", "3 次", "5 次", "12 次"], answer: 1, explanation: "卡律布狄斯每天會定時吞入並噴吐大量海水 3 次。" },
+            { id: 29, stationId: 9, stationName: "29. 卡律布狄斯吐海水時會造成巨大的什麼現象，讓船隻難以逃脫？", options: ["海上大火", "巨大的旋渦 (Whirlpool)", "濃密大霧", "冰山聚集"], answer: 1, explanation: "卡律布狄斯吞吐海水時會形成無法抗拒的巨型旋渦 (Whirlpool)，將經過的所有船隻捲入海底摧毀。" },
+
+            // 10. 太陽島 (Q30)
+            { id: 30, stationId: 10, stationName: "10. 太陽島", question: "30. 在太陽島時，誰吃了島上的牛羊，造成全體船員迎來悲慘下場？", options: ["奧德賽本人", "奧德賽的船員們", "島上的原住民", "獨眼巨人"], answer: 1, explanation: "船員們因飢餓背離警告，趁奧德賽睡著時宰殺並烤食了太陽神赫利奧斯 (Helios) 的聖牛，導致宙斯發怒降下雷電擊沉船隻。" },
+
+            // 11. 卡麗莎島 (Q31-Q32)
+            { id: 31, stationId: 11, stationName: "11. 卡麗莎島", question: "31. 奧德賽後來被哪一位女神救起，並在島上度過了一段美好時光？", options: ["卡莉普索 (Calypso)", "色喜 (Circe)", "雅典娜 (Athena)", "勒托 (Leto)"], answer: 0, explanation: "獨自倖存的奧德賽漂流到奧吉吉亞島，被美麗的海仙女卡莉普索 (Calypso) 救起。" },
+            { id: 32, stationId: 11, stationName: "11. 卡麗莎島", question: "32. 女神想賜給奧德賽什麼，卻被他拒絕了？", options: ["無盡財寶", "永生 (Immortality)", "統治海域的權力", "預知能力"], answer: 1, explanation: "卡莉普索深愛奧德賽，承諾賜給他「永生不老」(Immortality) 以挽留他，但奧德賽一心只想回到故鄉伊薩基與妻兒重聚。" },
+
+            // 12. 菲阿先國 (Q33)
+            { id: 33, stationId: 12, stationName: "12. 菲阿先國", question: "33. 在最後一站菲阿先國，救起奧德賽的公主叫什麼名字？", options: ["潘洛妮 (Penelope)", "娜烏西卡 (Nausicaa)", "赫蕾恩 (Helen)", "克蕾雅 (Clytemnestra)"], answer: 1, explanation: "菲阿先國純潔善良的娜烏西卡公主 (Nausicaa) 在海邊救起遇難的奧德賽，並帶他回宮接受盛情款待。" },
+
+            // 13. 綺思佳 (Q34-Q36)
+            { id: 34, stationId: 13, stationName: "13. 綺思佳", question: "34. 在綺思佳，王后潘洛妮用何種方法來拖延求婚者的求婚？", options: ["假裝生重病", "宣稱要為公公織完裹屍布，白日織布、夜晚拆布", "要求求婚者先去打敗巨人", "躲在神殿內不出門"], answer: 1, explanation: "忠貞的王后潘洛妮宣稱必須先替公公拉厄爾特斯織完裹屍布才能改嫁，白天織布、夜晚則偷偷把織好的布拆掉。" },
+            { id: 35, stationId: 13, stationName: "13. 綺思佳", question: "35. 化成老人的奧德賽向潘洛妮獻了何種計策，讓求婚者個個知難而退？", options: ["拉開奧德賽的重弓並一箭穿過十二把斧頭孔眼的射箭比賽", "賽馬決鬥比賽", "詩歌辯論比賽", "摔角比賽"], answer: 0, explanation: "奧德賽獻計舉行拉弓比武，唯有能拉開奧德賽鋼鐵重弓並讓箭穿過十二把斧頭柄孔的人才能娶潘洛妮。" },
+            { id: 36, stationId: 13, stationName: "13. 綺思佳", question: "36. 潘洛妮和奧德賽如何相認？", options: ["檢查身上的戒指", "測試他是否知道「用活橄欖樹幹打造、無法移動的新婚床」秘密", "展示腳踝上的胎記", "由家中的老狗認出"], answer: 1, explanation: "潘洛妮故意試探說要把婚床搬出房間，奧德賽指出該床是用庭院中活生生的橄欖樹幹砍雕而成、根本無法搬動，兩人因而淚奔相認。" }
+        ];
+    </script>
+
+    <script>
+        // Quiz App State
+        let currentStationIndex = 0; // 0 to 12
+        let currentQuestionIndexInStation = 0; // Index within selected station's questions
+        let globalQuestionIndex = 0; // 0 to 35
+        let userAnswers = new Array(36).fill(null);
+        let stationClearedState = new Array(13).fill(false);
+
+        // Navigation elements
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const mapViewScreen = document.getElementById('mapViewScreen');
+        const quizContainer = document.getElementById('quizContainer');
+        const resultsScreen = document.getElementById('resultsScreen');
+
+        // Startup function - Show Map View directly when starting
+        function startQuizFromMap() {
+            playSound('click');
+            welcomeScreen.classList.add('hidden');
+            quizContainer.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            mapViewScreen.classList.remove('hidden');
+
+            document.getElementById('topProgressContainer').classList.remove('hidden');
+            
+            // Default select station 1
+            selectStation(0);
+            renderMainMapHotspots();
+            updateOverallProgress();
+        }
+
+        function showWelcomeScreen() {
+            playSound('click');
+            welcomeScreen.classList.remove('hidden');
+            mapViewScreen.classList.add('hidden');
+            quizContainer.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+        }
+
+        function showMapView() {
+            playSound('click');
+            welcomeScreen.classList.add('hidden');
+            quizContainer.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            mapViewScreen.classList.remove('hidden');
+
+            renderMainMapHotspots();
+            updateOverallProgress();
+        }
+
+        // Render Map Hotspot Pins
+        function renderMainMapHotspots() {
+            const container = document.getElementById('mapMainHotspotsContainer');
+            container.innerHTML = '';
+
+            mapStations.forEach((st, idx) => {
+                const pin = document.createElement('button');
+                const isSelected = (idx === currentStationIndex);
+                const isCleared = stationClearedState[idx];
+
+                pin.className = `absolute transform -translate-x-1/2 -translate-y-1/2 group z-10 focus:outline-none transition-all duration-300 ${isSelected ? 'scale-125 z-20' : ''}`;
+                pin.style.left = `${st.percentLeft}%`;
+                pin.style.top = `${st.percentTop}%`;
+
+                let bgClasses = "bg-gradient-to-tr from-red-600 to-amber-400 border-white text-white";
+                let pinIcon = `${st.id}`;
+
+                if (isCleared) {
+                    bgClasses = "bg-gradient-to-tr from-emerald-500 to-teal-400 border-emerald-200 text-slate-950 font-black";
+                    pinIcon = `<i class="fa-solid fa-check text-[10px]"></i>`;
+                }
+
+                pin.innerHTML = `
+                    <span class="relative flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center">
+                        ${isSelected ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>' : ''}
+                        <span class="relative inline-flex rounded-full h-5 w-5 sm:h-6 sm:w-6 ${bgClasses} border-2 text-[11px] font-bold items-center justify-center shadow-xl ${isSelected ? 'pin-active' : ''}">
+                            ${pinIcon}
+                        </span>
+                    </span>
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1 rounded-lg bg-slate-900/95 text-cyan-300 text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none border border-cyan-500/30 shadow-2xl">
+                        ${st.name} ${isCleared ? '(已考完)' : ''}
+                    </span>
+                `;
+
+                pin.onclick = () => {
+                    playSound('click');
+                    selectStation(idx);
+                };
+                container.appendChild(pin);
+            });
+        }
+
+        function selectStation(idx) {
+            currentStationIndex = idx;
+            const st = mapStations[idx];
+
+            document.getElementById('activeStationBadge').innerText = `第 ${st.id} 站 / 共 13 站`;
+            document.getElementById('activeStationTitle').innerText = st.name;
+            document.getElementById('activeStationDesc').innerText = st.desc;
+            
+            const qCount = st.qIndices.length;
+            const qStartNum = st.qStart;
+            const qEndNum = st.qEnd;
+
+            if (qStartNum === qEndNum) {
+                document.getElementById('activeStationQuestionsInfo').innerText = `📌 對應考題：第 ${qStartNum} 題（共 ${qCount} 題）`;
+            } else {
+                document.getElementById('activeStationQuestionsInfo').innerText = `📌 對應考題：第 ${qStartNum} ~ ${qEndNum} 題（共 ${qCount} 題）`;
+            }
+
+            renderMainMapHotspots();
+        }
+
+        // Launch Station Quiz Mode
+        function launchStationQuiz() {
+            playSound('click');
+            currentQuestionIndexInStation = 0;
+            const st = mapStations[currentStationIndex];
+            globalQuestionIndex = st.qIndices[currentQuestionIndexInStation];
+
+            mapViewScreen.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+
+            renderCurrentQuestion();
+        }
+
+        function renderCurrentQuestion() {
+            const st = mapStations[currentStationIndex];
+            globalQuestionIndex = st.qIndices[currentQuestionIndexInStation];
+            const qData = questionsData[globalQuestionIndex];
+
+            // Slide Header
+            document.getElementById('slideStationLabel').innerHTML = `<i class="fa-solid fa-map-pin"></i> 第 ${st.id} 站：${st.name.replace(/^\d+\.\s*/, '')}`;
+            document.getElementById('slideNumberBadge').innerText = `本站 Q${currentQuestionIndexInStation + 1}/${st.qIndices.length} (總 Q${globalQuestionIndex + 1}/36)`;
+
+            // Question text
+            document.getElementById('questionText').innerText = qData.question;
+
+            // Render Options
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+
+            const optionPrefixes = ['A', 'B', 'C', 'D'];
+            const savedAnswer = userAnswers[globalQuestionIndex];
+
+            qData.options.forEach((optText, optIdx) => {
+                const btn = document.createElement('button');
+                let cardStateClass = "bg-slate-800/80 border-white/10 text-slate-200";
+
+                if (savedAnswer !== null) {
+                    if (optIdx === qData.answer) {
+                        cardStateClass = "correct text-white border-emerald-500 font-semibold";
+                    } else if (optIdx === savedAnswer) {
+                        cardStateClass = "wrong text-white border-red-500";
+                    } else {
+                        cardStateClass = "bg-slate-900/50 border-white/5 text-slate-500 opacity-60";
+                    }
+                }
+
+                btn.className = `option-card p-4 rounded-2xl text-left border flex items-center justify-between transition ${cardStateClass}`;
+                btn.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="w-8 h-8 rounded-xl bg-slate-700/60 flex items-center justify-center font-bold text-sm text-purple-300 border border-white/10">
+                            ${optionPrefixes[optIdx]}
+                        </span>
+                        <span class="text-sm sm:text-base">${optText}</span>
+                    </div>
+                    ${savedAnswer !== null && optIdx === qData.answer ? '<i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>' : ''}
+                    ${savedAnswer !== null && optIdx === savedAnswer && savedAnswer !== qData.answer ? '<i class="fa-solid fa-circle-xmark text-red-400 text-lg"></i>' : ''}
+                `;
+
+                btn.onclick = () => selectOption(optIdx);
+                optionsContainer.appendChild(btn);
+            });
+
+            // Explanation box
+            const explanationCard = document.getElementById('explanationCard');
+            if (savedAnswer !== null) {
+                explanationCard.classList.remove('hidden');
+                document.getElementById('explanationText').innerText = qData.explanation;
+                if (savedAnswer === qData.answer) {
+                    document.getElementById('explanationIcon').className = "fa-solid fa-circle-check text-emerald-400";
+                    document.getElementById('explanationTitle').innerText = "回答正確！情節解析：";
+                    document.getElementById('explanationTitle').className = "font-bold text-sm text-emerald-300";
+                } else {
+                    document.getElementById('explanationIcon').className = "fa-solid fa-circle-xmark text-red-400";
+                    document.getElementById('explanationTitle').innerText = "回答錯誤！正確答案解析：";
+                    document.getElementById('explanationTitle').className = "font-bold text-sm text-red-300";
+                }
+            } else {
+                explanationCard.classList.add('hidden');
+            }
+
+            // Buttons state
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+
+            prevBtn.disabled = (currentQuestionIndexInStation === 0);
+            prevBtn.style.opacity = (currentQuestionIndexInStation === 0) ? "0.4" : "1";
+
+            const isLastInStation = (currentQuestionIndexInStation === st.qIndices.length - 1);
+            if (isLastInStation) {
+                nextBtn.innerHTML = `<span>完成本站回到地圖</span> <i class="fa-solid fa-map-location-dot"></i>`;
+            } else {
+                nextBtn.innerHTML = `<span>下一題</span> <i class="fa-solid fa-chevron-right"></i>`;
+            }
+
+            updateOverallProgress();
+        }
+
+        function selectOption(optIdx) {
+            const qData = questionsData[globalQuestionIndex];
+            if (userAnswers[globalQuestionIndex] === null) {
+                userAnswers[globalQuestionIndex] = optIdx;
+                if (optIdx === qData.answer) {
+                    playSound('correct');
+                } else {
+                    playSound('wrong');
+                }
+                renderCurrentQuestion();
+                checkStationCompletion();
+            }
+        }
+
+        function prevQuestion() {
+            playSound('click');
+            if (currentQuestionIndexInStation > 0) {
+                currentQuestionIndexInStation--;
+                renderCurrentQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            playSound('click');
+            const st = mapStations[currentStationIndex];
+            if (currentQuestionIndexInStation < st.qIndices.length - 1) {
+                currentQuestionIndexInStation++;
+                renderCurrentQuestion();
+            } else {
+                // Completed station -> return to map
+                checkStationCompletion();
+                showMapView();
+            }
+        }
+
+        function checkStationCompletion() {
+            const st = mapStations[currentStationIndex];
+            const allAnswered = st.qIndices.every(idx => userAnswers[idx] !== null);
+            if (allAnswered) {
+                stationClearedState[currentStationIndex] = true;
+            }
+            updateOverallProgress();
+        }
+
+        function updateOverallProgress() {
+            const answeredCount = userAnswers.filter(a => a !== null).length;
+            const percentage = Math.round((answeredCount / 36) * 100);
+            
+            document.getElementById('progressBar').style.width = `${percentage}%`;
+            document.getElementById('progressText').innerText = `${answeredCount} / 36 題`;
+
+            const clearedCount = stationClearedState.filter(c => c === true).length;
+            document.getElementById('mapClearedCount').innerText = clearedCount;
+
+            if (clearedCount >= 13 || answeredCount >= 36) {
+                document.getElementById('viewResultsBtn').classList.remove('hidden');
+            }
+        }
+
+        // Show Final Results
+        function showResultsScreen() {
+            playSound('win');
+            confetti({
+                particleCount: 120,
+                spread: 80,
+                origin: { y: 0.6 }
+            });
+
+            welcomeScreen.classList.add('hidden');
+            mapViewScreen.classList.add('hidden');
+            quizContainer.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+
+            let correctCount = 0;
+            questionsData.forEach((q, idx) => {
+                if (userAnswers[idx] === q.answer) {
+                    correctCount++;
+                }
+            });
+
+            const score = Math.round((correctCount / 36) * 100);
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('finalCorrectCount').innerText = `${correctCount} / 36`;
+            document.getElementById('finalAccuracy').innerText = `${score}%`;
+
+            let rank = "希臘神話海航學徒";
+            if (score === 100) rank = "智慧與勇氣之神・奧德賽本尊 👑";
+            else if (score >= 85) rank = "智勇雙全神話宗師 🛡️";
+            else if (score >= 70) rank = "經驗豐富的航海領航員 ⚓";
+            else if (score >= 50) rank = "初入地中海的冒險船員 🌊";
+
+            document.getElementById('finalRankTitle').innerText = rank;
+        }
+
+        // Restart Quiz
+        function restartQuiz() {
+            playSound('click');
+            userAnswers = new Array(36).fill(null);
+            stationClearedState = new Array(13).fill(false);
+            currentStationIndex = 0;
+            currentQuestionIndexInStation = 0;
+            document.getElementById('viewResultsBtn').classList.add('hidden');
+            showMapView();
+        }
+
+        // Grid Overview Modal
+        function openGridModal() {
+            playSound('click');
+            const container = document.getElementById('gridQuestionsContainer');
+            container.innerHTML = '';
+
+            questionsData.forEach((q, idx) => {
+                const btn = document.createElement('button');
+                const isAnswered = (userAnswers[idx] !== null);
+                const isCorrect = isAnswered && (userAnswers[idx] === q.answer);
+
+                let badgeColor = "bg-slate-800 text-slate-400 border-white/10";
+                if (isAnswered) {
+                    badgeColor = isCorrect ? "bg-emerald-600/30 text-emerald-300 border-emerald-500/50" : "bg-red-600/30 text-red-300 border-red-500/50";
+                }
+
+                btn.className = `p-2.5 rounded-xl text-center border font-mono text-xs transition hover:scale-105 ${badgeColor}`;
+                btn.innerHTML = `
+                    <div class="font-bold">Q${idx + 1}</div>
+                    <div class="text-[10px] opacity-70">${q.stationId}站</div>
+                `;
+
+                btn.onclick = () => {
+                    closeGridModal();
+                    // Jump to station and question
+                    currentStationIndex = q.stationId - 1;
+                    const st = mapStations[currentStationIndex];
+                    currentQuestionIndexInStation = st.qIndices.indexOf(idx);
+                    launchStationQuiz();
+                };
+
+                container.appendChild(btn);
+            });
+
+            document.getElementById('gridModal').classList.remove('hidden');
+        }
+
+        function closeGridModal() {
+            playSound('click');
+            document.getElementById('gridModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
